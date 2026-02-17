@@ -2,15 +2,19 @@
 
 ![Banner](https://raw.githubusercontent.com/rudoapps/hybrid-hub-vault/main/flutter/images/hybrid-map-marker/banner.png)
 
-A Flutter package that allows you to create custom map markers from any Flutter widget for use with Google Maps. Convert your custom widgets, including SVG images, icons, and complex layouts, into bitmap markers.
+A Flutter package that allows you to create custom map markers from any Flutter widget for use with Google Maps. Convert your custom widgets and complex layouts, into bitmap markers.
 
 ## Features
 
 - ✨ **Convert any Flutter widget** into a Google Maps marker
 - 🎨 **Full customization** - Use any widget, including containers, icons, images, and SVG
-- 🚀 **SVG support** with built-in caching for optimal performance
+- 🚀 **Built-in asset caching** for optimal performance
 - 📐 **Adjustable quality** - Control the resolution of generated markers
 - 🎯 **Simple API** - Singleton pattern for easy access throughout your app
+
+## Screenshot
+
+<img src="https://raw.githubusercontent.com/rudoapps/hybrid-hub-vault/refs/heads/main/flutter/images/hybrid-map-marker/simulator_screenshot_8276D0B8-EF7D-4110-918F-7A15132596CD.png" width="300" alt="Example Screenshot" />
 
 ## Getting started
 
@@ -97,6 +101,43 @@ final svgMarker = await HybridMapMarker.instance.createIcon(
 
 > **Important:** If you don't call `cacheSvg()` before creating an icon with SVG content, the SVG may not render correctly in the marker.
 
+### Using Asset Images
+
+When using asset images in your markers, you **must** cache them first:
+
+```dart
+// 1. Cache the image before creating the icon
+await HybridMapMarker.instance.cacheImage(path: 'assets/marker.png');
+
+// 2. Create the marker with the image
+final imageMarker = await HybridMapMarker.instance.createIcon(
+  Image.asset('assets/marker.png'),
+  size: Size(48, 48),
+);
+```
+
+> **Important:** If you don't cache images before creating an icon, they may not render correctly in the marker.
+
+
+### Using Network Images
+
+When using network images in your markers, you **must** cache them first:
+
+```dart
+// 1. Cache the network image before creating the icon
+await HybridMapMarker.instance.cacheNetworkImage(
+  path: 'https://example.com/marker.png',
+);
+
+// 2. Create the marker with the network image
+final networkMarker = await HybridMapMarker.instance.createIcon(
+  Image.network('https://example.com/marker.png'),
+  size: Size(48, 48),
+);
+```
+
+> **Important:** If you don't cache images before creating an icon, they may not render correctly in the marker.
+
 ### Advanced Usage
 
 #### Adjusting Quality
@@ -123,8 +164,14 @@ class _MapScreenState extends State<MapScreen> {
   final _hybridMapMarker = HybridMapMarker.instance;
 
   Future<Set<Marker>> _createMarkers() async {
-    // Cache SVG assets first
-    await _hybridMapMarker.cacheSvg(path: 'assets/user.svg');
+    // Cache all assets first
+    await Future.wait([
+      _hybridMapMarker.cacheSvg(path: 'assets/user.svg'),
+      _hybridMapMarker.cacheImage(path: 'assets/bird.png'),
+      _hybridMapMarker.cacheNetworkImage(
+        path: 'https://example.com/avatar.png',
+      ),
+    ]);
 
     final size = Size(64, 64);
 
@@ -154,6 +201,26 @@ class _MapScreenState extends State<MapScreen> {
       size: size,
     );
 
+    // Create asset image marker
+    final assetImageMarker = await _hybridMapMarker.createIcon(
+      Container(
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(shape: BoxShape.circle),
+        child: Image.asset('assets/bird.png', fit: BoxFit.cover),
+      ),
+      size: size,
+    );
+
+    // Create network image marker
+    final networkImageMarker = await _hybridMapMarker.createIcon(
+      Container(
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(shape: BoxShape.circle),
+        child: Image.network('https://example.com/avatar.png', fit: BoxFit.cover),
+      ),
+      size: size,
+    );
+
     return {
       Marker(
         markerId: MarkerId('icon-marker'),
@@ -164,6 +231,16 @@ class _MapScreenState extends State<MapScreen> {
         markerId: MarkerId('svg-marker'),
         position: LatLng(39.4822, -0.3568),
         icon: svgMarker,
+      ),
+      Marker(
+        markerId: MarkerId('asset-image-marker'),
+        position: LatLng(39.4800, -0.3557),
+        icon: assetImageMarker,
+      ),
+      Marker(
+        markerId: MarkerId('network-image-marker'),
+        position: LatLng(39.4814, -0.3557),
+        icon: networkImageMarker,
       ),
     };
   }
@@ -209,6 +286,24 @@ Preloads and caches an SVG asset. Must be called before `createIcon()` if the wi
 
 **Parameters:**
 - `path` - The asset path to the SVG file (e.g., 'assets/marker.svg')
+
+**Returns:** `Future<void>`
+
+### `cacheImage({required String path})`
+
+Preloads and caches an asset image. Must be called before `createIcon()` if the widget contains asset images.
+
+**Parameters:**
+- `path` - The asset path to the image file (e.g., 'assets/marker.png')
+
+**Returns:** `Future<void>`
+
+### `cacheNetworkImage({required String path})`
+
+Preloads and caches a network image. Must be called before `createIcon()` if the widget contains network images.
+
+**Parameters:**
+- `path` - The URL of the network image (e.g., 'https://example.com/marker.png')
 
 **Returns:** `Future<void>`
 

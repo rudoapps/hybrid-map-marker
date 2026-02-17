@@ -6,29 +6,40 @@ This example demonstrates how to use the `hybrid_map_marker` package to create c
 
 This example shows:
 
-- ✨ Creating custom markers from Flutter widgets
-- 🎨 Using icon-based markers with custom styling
-- 🚀 Using SVG images in markers with proper caching
-- 📍 Displaying multiple custom markers on a Google Map
+- **Icon markers** - Using Flutter's built-in `Icon` widget
+- **SVG markers** - Using SVG images via `flutter_svg`
+- **Asset image markers** - Using JPG and PNG images from assets
+- **Network image markers** - Using images loaded from the network
+- **Asset caching** - Pre-caching SVGs, images, and network images for correct rendering
 
 ## What This Example Does
 
-The app displays a Google Map with two custom markers:
+The app displays a Google Map with five custom markers:
 
-1. **Location Marker** - A circular amber container with a location icon
+1. **Location Marker** - A circular amber container with a `Icons.location_on_outlined` icon
 2. **SVG Marker** - A circular amber container with an SVG user icon
+3. **JPG Marker** - A circular amber container with a JPG bird image
+4. **PNG Marker** - A circular amber container with a PNG bird image
+5. **Network Marker** - A circular amber container with an image loaded from a URL
 
-Both markers are created using the `HybridMapMarker` package, demonstrating different use cases.
+All markers share a common circular amber style and are created using `HybridMapMarkerImpl.instance`.
 
 ## Setup
 
-### 1. Add Your Google Maps API Key
+### 1. Get a Google Maps API Key
 
-Before running the example, you need to add your Google Maps API key:
+If you don't have a Google Maps API key:
+
+1. Go to the [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a new project or select an existing one
+3. Enable the **Maps SDK for Android** and **Maps SDK for iOS**
+4. Create credentials (API Key)
+
+### 2. Add Your Google Maps API Key
 
 #### iOS
 
-Edit `ios/Runner/AppDelegate.swift` and replace `your_api_key` with your actual API key:
+Edit `ios/Runner/AppDelegate.swift` and replace the placeholder with your actual API key:
 
 ```swift
 GMSServices.provideAPIKey("YOUR_ACTUAL_API_KEY")
@@ -44,16 +55,6 @@ Edit `android/app/src/main/AndroidManifest.xml` and add your API key:
     android:value="YOUR_ACTUAL_API_KEY"/>
 ```
 
-### 2. Get a Google Maps API Key
-
-If you don't have a Google Maps API key:
-
-1. Go to the [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project or select an existing one
-3. Enable the **Maps SDK for Android** and **Maps SDK for iOS**
-4. Create credentials (API Key)
-5. Copy the API key and paste it in the files mentioned above
-
 ### 3. Run the Example
 
 ```bash
@@ -63,54 +64,45 @@ flutter run
 
 ## Code Overview
 
-### Main Components
+### Asset Caching
 
-**`_createMarkers()`** - Creates two custom markers:
-- Caches the SVG asset first using `cacheSvg()`
-- Creates an icon-based marker using `createIcon()`
-- Creates an SVG-based marker using `createIcon()`
+Before creating markers, all assets are cached in parallel using `Future.wait`:
 
-**`_locationMarker()`** - Builds a widget for the location icon marker:
-- Circular amber container
-- White location icon
+```dart
+await Future.wait([
+  _hybridMapMarker.cacheSvg(path: 'assets/user.svg'),
+  _hybridMapMarker.cacheImage(path: 'assets/bird.jpg'),
+  _hybridMapMarker.cacheImage(path: 'assets/bird.png'),
+  _hybridMapMarker.cacheNetworkImage(
+    path: 'https://docs.flutter.dev/assets/images/dash/Dash.png',
+  ),
+]);
+```
 
-**`_svgMarker()`** - Builds a widget for the SVG marker:
-- Circular amber container
-- SVG user icon with white color filter
+### Marker Creation
+
+Each marker is a Flutter widget converted to a `BitmapDescriptor` via `createIcon()`:
+
+```dart
+final icon = await _hybridMapMarker.createIcon(
+  myWidget,
+  size: Size(64, 64),
+);
+```
 
 ### Key Takeaways
 
-1. **Always cache SVG assets before creating markers:**
-   ```dart
-   await _hybridMapMarker.cacheSvg(path: 'assets/user.svg');
-   ```
-
-2. **Create markers from any widget:**
-   ```dart
-   final icon = await _hybridMapMarker.createIcon(
-     yourWidget,
-     size: Size(64, 64),
-   );
-   ```
-
-3. **Use the markers in Google Maps:**
-   ```dart
-   Marker(
-     markerId: MarkerId('my-marker'),
-     position: LatLng(lat, lng),
-     icon: icon,
-   );
-   ```
+1. **Always cache assets before creating markers** — SVGs, local images, and network images must be pre-cached so they render correctly.
+2. **Any Flutter widget works** — Icons, SVGs, asset images, and network images can all be used as markers.
+3. **Use a shared base widget** — The example uses a `_circleMarker()` helper to apply a consistent circular amber style to all markers.
 
 ## Assets
 
-The example uses an SVG asset located at `assets/user.svg`. Make sure your `pubspec.yaml` includes:
+The example uses the following assets (declared in `pubspec.yaml`):
 
-```yaml
-flutter:
-  assets:
-    - assets/
-```
+- `assets/user.svg` — SVG icon for the SVG marker
+- `assets/bird.jpg` — JPG image for the JPG marker
+- `assets/bird.png` — PNG image for the PNG marker
 
 ## Learn More
 

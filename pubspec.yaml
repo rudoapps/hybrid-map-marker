@@ -1,7 +1,9 @@
 name: hybrid_map_marker
-description: "A Flutter package that allows you to create custom map markers from any Flutter widget for use with Google Maps. Convert your custom widgets, including SVG images, icons, and complex layouts, into bitmap markers."
-version: 0.0.1
+description: "A Flutter package that allows you to create custom map markers from any widget for use with Google Maps."
+version: 2.0.1
 homepage: https://github.com/rudoapps/hybrid-map-marker
+repository: https://github.com/rudoapps/hybrid-map-marker
+issue_tracker: https://github.com/rudoapps/hybrid-map-marker/issues
 
 environment:
   sdk: ^3.10.4

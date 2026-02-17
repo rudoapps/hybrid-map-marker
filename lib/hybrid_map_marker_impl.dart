@@ -1,5 +1,12 @@
-import 'package:flutter/widgets.dart';
+import 'dart:async';
+import 'dart:ui' as ui;
+
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_svg/svg.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:hybrid_map_marker/hybrid_map_marker.dart';
 
 /// A utility class for creating custom map markers from Flutter widgets.
 ///
@@ -14,7 +21,10 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 ///   size: Size(48, 48),
 /// );
 /// ```
-abstract interface class HybridMapMarker {
+class HybridMapMarkerImpl implements HybridMapMarker {
+  const HybridMapMarkerImpl._();
+  static final instance = HybridMapMarkerImpl._();
+
   /// **Important:** This method must be called before [createIcon] if the widget
   /// contains SVG images. Otherwise, the SVG may not render correctly in the
   /// generated marker icon.
@@ -33,7 +43,15 @@ abstract interface class HybridMapMarker {
   ///   size: Size(48, 48),
   /// );
   /// ```
-  Future<void> cacheSvg({required String path});
+  @override
+  Future<void> cacheSvg({required String path}) async {
+    final picture = SvgPicture.asset(path);
+    final loader = picture.bytesLoader as SvgLoader;
+    await svg.cache.putIfAbsent(
+      loader.cacheKey(null),
+      () => loader.loadBytes(null),
+    );
+  }
 
   /// **Important:** This method must be called before [createIcon] if the widget
   /// contains asset images. Otherwise, the image may not render correctly in the
@@ -53,7 +71,11 @@ abstract interface class HybridMapMarker {
   ///   size: Size(48, 48),
   /// );
   /// ```
-  Future<void> cacheImage({required String path});
+  @override
+  Future<void> cacheImage({required String path}) async {
+    final provider = AssetImage(path);
+    await _resolveImage(provider);
+  }
 
   /// **Important:** This method must be called before [createIcon] if the widget
   /// contains network images. Otherwise, the image may not render correctly in the
@@ -75,7 +97,23 @@ abstract interface class HybridMapMarker {
   ///   size: Size(48, 48),
   /// );
   /// ```
-  Future<void> cacheNetworkImage({required String path});
+  @override
+  Future<void> cacheNetworkImage({required String path}) async {
+    final provider = NetworkImage(path);
+    await _resolveImage(provider);
+  }
+
+  Future<void> _resolveImage(ImageProvider provider) async {
+    final completer = Completer<void>();
+    final stream = provider.resolve(ImageConfiguration.empty);
+    final listener = ImageStreamListener(
+      (_, _) => completer.complete(),
+      onError: (error, stack) => completer.completeError(error, stack),
+    );
+    stream.addListener(listener);
+    await completer.future;
+    stream.removeListener(listener);
+  }
 
   /// Converts a Flutter widget into a [BitmapDescriptor] for use as a map marker.
   ///
@@ -107,9 +145,64 @@ abstract interface class HybridMapMarker {
   ///   quality: 2.0,
   /// );
   /// ```
+  @override
   Future<BitmapDescriptor> createIcon(
     Widget widget, {
     required Size size,
     double quality = 1.0,
-  });
+  }) async {
+    final view = ui.PlatformDispatcher.instance.views.first;
+    final RenderRepaintBoundary repaintBoundary = RenderRepaintBoundary();
+    final devicePixelRatio = view.devicePixelRatio * quality;
+
+    final RenderView renderView = RenderView(
+      view: view,
+      child: RenderPositionedBox(
+        alignment: Alignment.center,
+        child: repaintBoundary,
+      ),
+      configuration: ViewConfiguration(
+        logicalConstraints: BoxConstraints.tight(size),
+        devicePixelRatio: devicePixelRatio,
+      ),
+    );
+
+    final PipelineOwner pipelineOwner = PipelineOwner();
+    final BuildOwner buildOwner = BuildOwner(focusManager: FocusManager());
+
+    pipelineOwner.rootNode = renderView;
+    renderView.prepareInitialFrame();
+
+    final RenderObjectToWidgetElement<RenderBox> rootElement =
+        RenderObjectToWidgetAdapter<RenderBox>(
+          container: repaintBoundary,
+          child: Directionality(
+            textDirection: TextDirection.ltr,
+            child: widget,
+          ),
+        ).attachToRenderTree(buildOwner);
+
+    buildOwner.buildScope(rootElement);
+    buildOwner.finalizeTree();
+
+    pipelineOwner.flushLayout();
+    pipelineOwner.flushCompositingBits();
+    pipelineOwner.flushPaint();
+
+    final ui.Image image = await repaintBoundary.toImage(
+      pixelRatio: devicePixelRatio,
+    );
+    final ByteData? byteData = await image.toByteData(
+      format: ui.ImageByteFormat.png,
+    );
+
+    final Uint8List uint8List =
+        byteData?.buffer.asUint8List() ?? Uint8List.fromList([]);
+    return BitmapDescriptor.bytes(
+      uint8List,
+      imagePixelRatio: devicePixelRatio,
+      height: size.height,
+      width: size.width,
+    );
+  }
 }
